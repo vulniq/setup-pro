@@ -1,0 +1,121 @@
+version: '3.3'
+
+services:
+   mysql:
+     volumes:
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/mysql/var-lib-mysql:/var/lib/mysql
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/mysql/var-log-mysql:/var/log/mysql
+     restart: on-failure
+     expose: 
+      - "3306"
+     build:
+      dockerfile: Dockerfile
+      context: ./mysql
+      args: 
+        - "VULNIQ_CUSTOMER_ACCESS_TOKEN=${VULNIQ_CUSTOMER_ACCESS_TOKEN}"
+     environment:
+       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+
+   elastic:
+     volumes:
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/elastic/data:/usr/share/elasticsearch/data
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/elastic/logs:/usr/share/elasticsearch/logs
+     restart: on-failure
+     expose: 
+      - "9200"
+      - "9300"
+     build:
+      dockerfile: Dockerfile
+      context: ./elastic
+      args: 
+        - "VULNIQ_CUSTOMER_ACCESS_TOKEN=${VULNIQ_CUSTOMER_ACCESS_TOKEN}"
+     deploy:
+      resources:
+        limits:
+          memory: "3G"
+
+   memcached:
+     restart: on-failure
+     expose: 
+      - "11211"
+     build:
+      dockerfile: Dockerfile
+      context: ./memcached
+     deploy:
+      resources:
+        limits:
+          memory: ${MEMCACHED_MEMORY_LIMIT}
+
+
+   webpage_renderer:
+     volumes:
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/webpage-renderer/logs:/vulniq/viq-webpage-renderer-logs
+     restart: on-failure
+     expose: 
+      - "8080"
+     build:
+      dockerfile: Dockerfile
+      context: ./webpage-renderer
+      args: 
+        - "VULNIQ_CUSTOMER_ACCESS_TOKEN=${VULNIQ_CUSTOMER_ACCESS_TOKEN}"
+     environment:
+       VIQ_SERVICE_SECRET: "${WEBPAGE_RENDERER_SERVICE_SECRET}"
+       VIQ_RESTART_INTERVAL_MS: 600000
+       VIQ_PORT: 8080
+       VIQ_SCREENSHOT_WIDTH: 500
+       VIQ_SCREENSHOT_HEIGHT: 650
+       VIQ_ISMOBILE: "true"
+
+   backend:
+     restart: on-failure
+     build:
+      dockerfile: ./backend/Dockerfile
+      context: .
+      args: 
+        - "VULNIQ_CUSTOMER_ACCESS_TOKEN=${VULNIQ_CUSTOMER_ACCESS_TOKEN}"
+     volumes:
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/permanent-storage-folder:/vulniq/permanent-storage-folder
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/temp-files-folder:/vulniq/temp-files-folder
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/backend:/vulniq/backend
+
+   webapp:
+     restart: on-failure
+     build:
+      dockerfile: ./webapp/Dockerfile
+      context: ./
+      args: 
+        - "VULNIQ_CUSTOMER_ACCESS_TOKEN=${VULNIQ_CUSTOMER_ACCESS_TOKEN}"
+     volumes:
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/permanent-storage-folder:/vulniq/permanent-storage-folder
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/temp-files-folder:/vulniq/temp-files-folder
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/webapp/logs:/var/log/apache2
+       - ${VULNIQ_INSTALLATION_FOLDER?VULNIQ_INSTALLATION_FOLDER environment variable MUST be set}/webapp/certs:/vulniq/ssl-certs
+     environment: 
+      - "VIQ_PERMSTORAGE_PATH=/vulniq/permanent-storage-folder"
+      - "VIQ_DB_URL=mysql:host=mysql:3306;dbname=vulniq"
+      - "VIQ_DB_USER=root"
+      - "VIQ_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}"
+      - "VIQ_PHPLIB_PATH=/vulniq/frontend/php-lib"
+      - "VIQ_APP_MODE=OP_FULL"
+      - "VIQ_CANONICAL_BASE_URL=${VIQ_CANONICAL_BASE_URL}"
+      - "VIQ_ACCESS_TOKEN_KEY=${VIQ_ACCESS_TOKEN_KEY}"
+      - "VIQ_ALLOW_ANON_ACCESS=${VIQ_ALLOW_ANON_ACCESS}"
+      - "VIQ_SUPER_USER_EMAIL=${VIQ_SUPER_USER_EMAIL}"
+      - "VIQ_AUTO_REGISTER_USERS_THAT_SIGNIN_WITH_IDPS=${VIQ_AUTO_REGISTER_USERS_THAT_SIGNIN_WITH_IDPS}"
+      - "VIQ_AUTHN_GOOGLE_ENABLED=${VIQ_AUTHN_GOOGLE_ENABLED}"
+      - "VIQ_GOOGLE_CLIENT_ID=${VIQ_GOOGLE_CLIENT_ID}"
+      - "VIQ_AUTHN_LINKEDIN_ENABLED=${VIQ_AUTHN_LINKEDIN_ENABLED}"
+      - "VIQ_LINKEDIN_CLIENT_ID=${VIQ_LINKEDIN_CLIENT_ID}"
+      - "VIQ_LINKEDIN_CLIENT_SECRET=${VIQ_LINKEDIN_CLIENT_SECRET}"
+      - "VIQ_LINKEDIN_REDIRECT_URI=${VIQ_LINKEDIN_REDIRECT_URI}"
+      - "VIQ_RECAPTCHA_SITEKEY=${VIQ_RECAPTCHA_SITEKEY}"
+      - "VIQ_RECAPTCHA_SECRET=${VIQ_RECAPTCHA_SECRET}"
+      - "VIQ_DISABLE_RATE_LIMITING=${VIQ_DISABLE_RATE_LIMITING}"
+      - "VIQ_API_RATE_LIMIT_TOTAL_MAX=${VIQ_API_RATE_LIMIT_TOTAL_MAX}"
+      - "VIQ_API_RATE_LIMIT_MINUTE_MAX=${VIQ_API_RATE_LIMIT_MINUTE_MAX}"
+      - "VIQ_API_RATE_LIMIT_MINUTE_MAX_BEARER=${VIQ_API_RATE_LIMIT_MINUTE_MAX_BEARER}"
+      - "VIQ_ELASTICSEARCH_BASEURL=${VIQ_ELASTICSEARCH_BASEURL}"
+      - "VIQ_DATASOURCE_CONFIG_FIELDS_CONFIGFILE=${VIQ_DATASOURCE_CONFIG_FIELDS_CONFIGFILE}"
+     ports: 
+      - "443:443"
+      - "8443:8443"
